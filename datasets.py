@@ -169,7 +169,8 @@ def prepare_higgs(dataset_folder, nrows):
 
     if not os.path.isfile(local_url):
         urlretrieve(url, local_url)
-    higgs = pd.read_csv(local_url, nrows=nrows)
+    higgs = pd.read_csv(local_url, nrows=nrows, header=None)
+
     X = higgs.iloc[:, 1:]
     y = higgs.iloc[:, 0]
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=77,
