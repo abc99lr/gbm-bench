@@ -44,12 +44,12 @@ def train_xgb(max_depth, n_trees, n_cols, X_train, y_train):
         print("    Model exist, exiting")
         return 
     
-    dtrain = xgb.DMatrix(X_train, label=y_train)
+    dtrain = xgb.DMatrix(X_train, label=y_train, silent=False)
 
     # instantiate params
     params = {}
     # general params
-    general_params = {'silent': 1}
+    general_params = {'silent': 0}
     params.update(general_params)
     # learning task params
     learning_task_params = {}
@@ -60,20 +60,22 @@ def train_xgb(max_depth, n_trees, n_cols, X_train, y_train):
     learning_task_params['base_score'] = 0.5
     # use GPU training to save time 
     learning_task_params['tree_method'] = 'gpu_hist'
-
+    learning_task_params['n_gpus'] = 1
+    learning_task_params['gpu_id'] = 0
     params.update(learning_task_params)    
 
     start_xgb = time.time()
     xgb_tree = xgb.train(params, dtrain, n_trees)
     stop_xgb = time.time()
+
     print("    XGboost training time: ", stop_xgb - start_xgb)
+
     xgb_tree.save_model(model_path+'xgb_D'+str(max_depth)+'_T'+str(n_trees)+'_C'+str(n_cols)+'.model')
 
 def train_all(max_depth, n_trees, n_cols, X_train, y_train):
     train_xgb(max_depth, n_trees, n_cols, X_train, y_train)
 
 def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test, dataset):
-
     xgb_tree = xgb.Booster()
     xgb_tree.load_model(model_path+'xgb_D'+str(max_depth)+'_T'+str(n_trees)+'_C'+str(n_cols)+'.model') 
 
@@ -111,7 +113,10 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
             write_csv_xgb_cpu.append("xgb_cpu")
 
             xgb_tree.set_param({'predictor': 'cpu_predictor'})
-            dtest = xgb.DMatrix(X_test_c)
+            xgb_tree.set_param({'n_gpus': '0'})
+            attri = {'SAVED_PARAM_gpu_id': None, 'SAVED_PARAM_n_gpus': None}
+            xgb_tree.set_attr(**attri)
+            dtest = xgb.DMatrix(X_test_c, silent=False)
             each_run = []        
 
             for run in range(repeat):
@@ -137,7 +142,9 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
             xgb_tree.set_param({'predictor': 'gpu_predictor'})
             xgb_tree.set_param({'n_gpus': '1'})
             xgb_tree.set_param({'gpu_id': '0'})
-            dtest = xgb.DMatrix(X_test_g)
+            attri = {'SAVED_PARAM_gpu_id': None, 'SAVED_PARAM_n_gpus': None}
+            xgb_tree.set_attr(**attri)
+            dtest = xgb.DMatrix(X_test_g, silent=False)
             each_run = []
 
             for run in range(repeat):
@@ -212,15 +219,24 @@ if __name__ == '__main__':
     test_depth = [8, 10, 12, 14, 16]
     test_models = ['xgb_cpu', 'fil', 'treelite', 'xgb_gpu']
     dataset = "higgs"
-    test_rows = [100, 1000, 10000, 100000, 1000000]
+    # test_rows = [100, 1000, 10000, 100000, 1000000]
     test_cols = [1024]
     dataset_row = 0
 
     if dataset == "higgs":
         # 11M 
-        dataset_row = 11000000
+        dataset_row = 10000
         test_cols = [28]
-    
+    elif dataset == "airline":
+        dataset_row = 10000
+        test_cols = [90]
+    elif dataset == "bosch":
+        dataset_row = 10000
+        test_cols = [968]
+    elif dataset == "epsilon":
+        dataset_row = 1000
+        test_cols = [90]
+
     header_csv = ["dataset", "depth", "n_trees", "n_cols", "n_rows", "predictor", "time", "acc"]
     with open(result_path + dataset + '.csv', 'a', newline='') as myfile:
         wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
@@ -250,4 +266,4 @@ if __name__ == '__main__':
                 train_xgb(max_depth, n_trees, n_cols, X_train, y_train)
 
                 print("===========================================")
-                test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test, dataset)
+                test_all(max_depth, n_trees, n_cols, [y_test.shape[0]], test_models, X_test, y_test, dataset)
