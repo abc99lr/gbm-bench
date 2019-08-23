@@ -1,4 +1,4 @@
-from joblib import dump, load
+# from joblib import dump, load
 import numpy as np
 import time
 from cuml import ForestInference as FIL
@@ -44,8 +44,6 @@ dataset = "higgs"
 dataset_row = 11000000
 n_cols = 28
 
-save_load = False 
-
 print("===========================================")
 print("Benchmark Starts")
 
@@ -58,6 +56,12 @@ X_train = data.X_train.to_numpy(np.float32)
 X_test = data.X_test.to_numpy(np.float32)
 y_train = data.y_train.to_numpy(np.float32)
 y_test = data.y_test.to_numpy(np.float32)
+
+X_test_g = cuda.to_device(np.ascontiguousarray(X_test[:1000000, :]))
+X_test_c = X_test[:1000000, :]
+y_test_t = y_test[:1000000]
+
+
 """
 print("===>Training XGB - D: %d, T: %d, C: %d" % (max_depth, n_trees, n_cols))
 
@@ -94,29 +98,12 @@ if save_load:
 xgb_tree = xgb.Booster()
 xgb_tree.load_model(model_path+'xgb_D'+str(max_depth)+'_T'+str(n_trees)+'_C'+str(n_cols)+'.model') 
 
-X_test_g = cuda.to_device(np.ascontiguousarray(X_test[:1000, :]))
-X_test_c = X_test[:1000, :]
-y_test_t = y_test[:1000]
-
-"""
-xgb_tree.set_param({'predictor': 'cpu_predictor'})
-# xgb_tree.set_param({'n_gpus': '0'})
-dtest = xgb.DMatrix(X_test_c, silent=False)
-
-_ = xgb_tree.predict(dtest)
-start_xgb = time.time()
-xgb_preds_cpu = xgb_tree.predict(dtest)
-stop_xgb = time.time()
-
-xgb_acc_cpu = accuracy_score(xgb_preds_cpu > 0.5, y_test_t)
-
-print("    XGboost CPU testing time: ", (stop_xgb - start_xgb)*1000, " XGboost CPU acc: ", xgb_acc_cpu)
-"""
-
 xgb_tree.set_param({'predictor': 'gpu_predictor'})
 xgb_tree.set_param({'n_gpus': '1'})
 xgb_tree.set_param({'gpu_id': '0'})
-dtest = xgb.DMatrix(X_test_c, silent=False)
+X_test_g_cudf = cudf.DataFrame.from_gpu_matrix(X_test_g)
+# X_test_g_cudf = cudf.DataFrame.from_pandas(data.X_test[:1000000])
+dtest = xgb.DMatrix(X_test_g_cudf, silent=False)
 
 each_run = []
 for i in range(repeat):
@@ -124,23 +111,32 @@ for i in range(repeat):
     start_xgb = time.time()
     xgb_preds_gpu = xgb_tree.predict(dtest)
     stop_xgb = time.time()
-    each_run.append(stop_xgb - start_xgb)
+    each_run.append((stop_xgb - start_xgb) * 1000)
 
 print(each_run)
-"""
-print("    XGboost GPU testing time: ", (stop_xgb - start_xgb)*1000)
-start_xgb = time.time()
-xgb_preds_gpu = xgb_tree.predict(dtest)
-stop_xgb = time.time()
-print("    XGboost GPU testing time: ", (stop_xgb - start_xgb)*1000)
-start_xgb = time.time()
-xgb_preds_gpu = xgb_tree.predict(dtest)
-stop_xgb = time.time()
-print("    XGboost GPU testing time: ", (stop_xgb - start_xgb)*1000)
-"""
-
 xgb_acc_gpu = accuracy_score(xgb_preds_gpu > 0.5, y_test_t)
+print("    XGboost GPU testing time: ", min(each_run), " XGboost GPU acc: ", xgb_acc_gpu)
 
-print("    XGboost GPU testing time: ", min(each_run)*1000, " XGboost GPU acc: ", xgb_acc_gpu)
+"""
+fm = {}
+algos = ['NAIVE']
 
+for algo in algos:
+    fm[algo] = FIL.load(model_path+'xgb_D'+str(max_depth)+'_T'+str(n_trees)+'_C'+str(n_cols)+'.model',
+                        algo=algo, output_class=True, threshold=0.50)
+
+for algo in algos:
+    each_run = []
+    for run in range(repeat):
+        _ = fm[algo].predict(X_test_g)
+        start_fil = time.time()
+        fil_preds = fm[algo].predict(X_test_g)
+        stop_fil = time.time()
+
+        fil_acc = accuracy_score(fil_preds, y_test_t)
+        each_run.append((stop_fil - start_fil) * 1000)
+
+    print(each_run)
+    print("    FIL %s testing time: " % algo, min(each_run), " FIL %s acc: " % algo, fil_acc)
+"""
 

@@ -114,8 +114,7 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
 
             xgb_tree.set_param({'predictor': 'cpu_predictor'})
             xgb_tree.set_param({'n_gpus': '0'})
-            attri = {'SAVED_PARAM_gpu_id': None, 'SAVED_PARAM_n_gpus': None}
-            xgb_tree.set_attr(**attri)
+
             dtest = xgb.DMatrix(X_test_c, silent=False)
             each_run = []        
 
@@ -142,9 +141,8 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
             xgb_tree.set_param({'predictor': 'gpu_predictor'})
             xgb_tree.set_param({'n_gpus': '1'})
             xgb_tree.set_param({'gpu_id': '0'})
-            attri = {'SAVED_PARAM_gpu_id': None, 'SAVED_PARAM_n_gpus': None}
-            xgb_tree.set_attr(**attri)
-            dtest = xgb.DMatrix(X_test_g, silent=False)
+
+            dtest = xgb.DMatrix(X_test_c, silent=False)
             each_run = []
 
             for run in range(repeat):
@@ -216,26 +214,29 @@ if __name__ == '__main__':
 
     # control the test cases 
     test_trees = [100, 250, 500, 750, 1000]
-    test_depth = [8, 10, 12, 14, 16]
+    test_depth = [5, 6, 7, 8]
     test_models = ['xgb_cpu', 'fil', 'treelite', 'xgb_gpu']
-    dataset = "higgs"
-    # test_rows = [100, 1000, 10000, 100000, 1000000]
+    dataset = "epsilon"
+    test_rows = [100, 1000, 10000, 100000, 1000000]
     test_cols = [1024]
     dataset_row = 0
 
     if dataset == "higgs":
         # 11M 
-        dataset_row = 10000
+        dataset_row = 11000000
         test_cols = [28]
     elif dataset == "airline":
-        dataset_row = 10000
-        test_cols = [90]
+        # 115M 
+        dataset_row = 115000000
+        test_cols = [13]
     elif dataset == "bosch":
-        dataset_row = 10000
+        # 1.184M
+        dataset_row = 1184000
         test_cols = [968]
     elif dataset == "epsilon":
-        dataset_row = 1000
-        test_cols = [90]
+        # 500K 
+        dataset_row = 500000
+        test_cols = [2000]
 
     header_csv = ["dataset", "depth", "n_trees", "n_cols", "n_rows", "predictor", "time", "acc"]
     with open(result_path + dataset + '.csv', 'a', newline='') as myfile:
@@ -249,11 +250,17 @@ if __name__ == '__main__':
     print("    Preparing dataset " + dataset)
     data = prepare_dataset(data_path, dataset, dataset_row)
 
+    if dataset == 'epsilon':
+        X_train = data.X_train.astype(np.float32)
+        X_test = data.X_test.astype(np.float32)
+        y_train = data.y_train.astype(np.float32)
+        y_test = data.y_test.astype(np.float32)
     # to numpy array 
-    X_train = data.X_train.to_numpy(np.float32)
-    X_test = data.X_test.to_numpy(np.float32)
-    y_train = data.y_train.to_numpy(np.float32)
-    y_test = data.y_test.to_numpy(np.float32)
+    else:
+        X_train = data.X_train.to_numpy(np.float32)
+        X_test = data.X_test.to_numpy(np.float32)
+        y_train = data.y_train.to_numpy(np.float32)
+        y_test = data.y_test.to_numpy(np.float32)
 
     print("X_train shape: ", X_train.shape)
     print("y_train shape: ", y_train.shape)
@@ -266,4 +273,4 @@ if __name__ == '__main__':
                 train_xgb(max_depth, n_trees, n_cols, X_train, y_train)
 
                 print("===========================================")
-                test_all(max_depth, n_trees, n_cols, [y_test.shape[0]], test_models, X_test, y_test, dataset)
+                test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test, dataset)
