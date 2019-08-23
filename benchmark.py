@@ -35,7 +35,7 @@ def simulate_data(m, n, k=2, random_state=None, classification=True):
 
 model_path = "./models/"
 data_path = "./data/"
-result_path = "./results/"
+result_path = "./results_new/"
 
 def train_xgb(max_depth, n_trees, n_cols, X_train, y_train):
     print("===>Training XGB - D: %d, T: %d, C: %d" % (max_depth, n_trees, n_cols))
@@ -142,7 +142,10 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
             xgb_tree.set_param({'n_gpus': '1'})
             xgb_tree.set_param({'gpu_id': '0'})
 
-            dtest = xgb.DMatrix(X_test_c, silent=False)
+            # This makes sure the input to XGBoost GPU is on device 
+            # Only needs to copy model to device 
+            X_test_g_cudf = cudf.DataFrame.from_gpu_matrix(X_test_g)
+            dtest = xgb.DMatrix(X_test_g_cudf, silent=False)
             each_run = []
 
             for run in range(repeat):
