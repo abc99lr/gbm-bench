@@ -33,9 +33,9 @@ def simulate_data(m, n, k=2, random_state=None, classification=True):
                                             random_state=random_state, shuffle=True)
     return features.astype(np.float32), labels.astype(np.float32)
 
-model_path = "./models_final_rerun/"
+model_path = "./models_final/"
 data_path = "./data/"
-result_path = "./results_final/"
+result_path = "./results_final_0827/"
 
 def train_xgb(max_depth, n_trees, n_cols, X_train, y_train, dataset):
     print("===>Training XGB - D: %d, T: %d, C: %d" % (max_depth, n_trees, n_cols))
@@ -131,9 +131,9 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
             dtest = xgb.DMatrix(X_test_c)
             each_run = []        
 
-            for run in range(repeat):
+            _ = xgb_tree.predict(dtest)
 
-                _ = xgb_tree.predict(dtest)
+            for run in range(repeat):
                 start_xgb = time.time()
                 xgb_preds_cpu = xgb_tree.predict(dtest)
                 stop_xgb = time.time()
@@ -150,7 +150,7 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
         if 'xgb_gpu' in test_models:
             write_csv_xgb_gpu = copy.deepcopy(common_csv)
             write_csv_xgb_gpu.append("xgb_gpu")
-
+            
             xgb_tree.set_param({'predictor': 'gpu_predictor'})
             xgb_tree.set_param({'n_gpus': '1'})
             xgb_tree.set_param({'gpu_id': '0'})
@@ -160,10 +160,9 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
             X_test_g_cudf = cudf.DataFrame.from_gpu_matrix(X_test_g)
             dtest = xgb.DMatrix(X_test_g_cudf)
             each_run = []
+            _ = xgb_tree.predict(dtest)
 
             for run in range(repeat):
-
-                _ = xgb_tree.predict(dtest)
                 start_xgb = time.time()
                 xgb_preds_gpu = xgb_tree.predict(dtest)
                 stop_xgb = time.time()
@@ -185,9 +184,9 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
 
             each_run = []        
 
-            for run in range(repeat):
+            _ = tl_predictor.predict(tl_batch)
 
-                _ = tl_predictor.predict(tl_batch)
+            for run in range(repeat):
                 start_tl = time.time()
                 tl_pred = tl_predictor.predict(tl_batch)
                 stop_tl = time.time()
@@ -207,8 +206,9 @@ def test_all(max_depth, n_trees, n_cols, test_rows, test_models, X_test, y_test,
                 write_csv_fil.append("fil_" + str(algo))
 
                 each_run = []
+                _ = fm[algo].predict(X_test_g)
+
                 for run in range(repeat):
-                    _ = fm[algo].predict(X_test_g)
                     start_fil = time.time()
                     fil_preds = fm[algo].predict(X_test_g)
                     stop_fil = time.time()
@@ -231,9 +231,9 @@ if __name__ == '__main__':
     # control the test cases 
     test_trees = [100, 250, 500, 750, 1000]
     test_depth = [6, 7, 8, 9, 10]
-    test_models = ['xgb_cpu', 'fil', 'treelite', 'xgb_gpu']
-    datasets = ['epsilon', 'bosch']
-    test_rows = [100, 1000, 10000, 100000, 1000000]
+    test_models = ['xgb_gpu']
+    datasets = ['epsilon']
+    test_rows = [1000000]
 
     for dataset in datasets:
         if dataset == "higgs":
