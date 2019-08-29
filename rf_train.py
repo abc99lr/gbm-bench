@@ -101,26 +101,26 @@ def compare_rf_runtimes(X_train, y_train, X_test, y_test,
                         scheduler_address=None,
                         run_cuml=True, run_sklearn=True, skip_predict=False,
                         explicit_persist=True, random_state=None):
-    print("--- Begin cluster setup ---")
-    if scheduler_address is None:
-        cluster = LocalCUDACluster(threads_per_worker=1, n_workers=n_workers)
-        c = Client(cluster)
-    else:
-        print("--- Reuse exising scheduler: %s ---" % scheduler_address)
-        cluster = None
-        c = Client(scheduler_address)
+    # print("--- Begin cluster setup ---")
+    # if scheduler_address is None:
+    #     cluster = LocalCUDACluster(threads_per_worker=1, n_workers=n_workers)
+    #     c = Client(cluster)
+    # else:
+    #     print("--- Reuse exising scheduler: %s ---" % scheduler_address)
+    #     cluster = None
+    #     c = Client(scheduler_address)
 
     import cudf, dask_cudf
 
-    workers = c.has_what().keys()
-    if scheduler_address and n_workers == 0:
-        print("Defaulting to full set of %d workers" % len(workers))
-        n_workers = len(workers)
+    # workers = c.has_what().keys()
+    # if scheduler_address and n_workers == 0:
+    #     print("Defaulting to full set of %d workers" % len(workers))
+    #     n_workers = len(workers)
 
-    print("--- All Workers: ", len(workers), "Subset to: ", n_workers, " --- ")
-    print("All workers: ", workers)
-    workers = [k for k in list(workers)[:n_workers]]
-    print("Post workers: ", workers)
+    # print("--- All Workers: ", len(workers), "Subset to: ", n_workers, " --- ")
+    # print("All workers: ", workers)
+    # workers = [k for k in list(workers)[:n_workers]]
+    # print("Post workers: ", workers)
 
     # test_size = 1000
     # data = make_data(USE_HIGGS, train_size + test_size, random_state=random_state)
@@ -129,6 +129,9 @@ def compare_rf_runtimes(X_train, y_train, X_test, y_test,
     # X, y = data[data.columns.difference(['label'])].as_matrix(), data['label'].to_array() # Separate data into X and y
     # del data
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+
+    y_train = y_train.astype(np.int32)
+    y_test = y_test.astype(np.int32)
 
     print("X train: ", X_train.shape, "Y train: ", y_train.shape,
           "X test: ", X_test.shape, "Y test: ", y_test.shape)
@@ -155,8 +158,9 @@ def compare_rf_runtimes(X_train, y_train, X_test, y_test,
         y_train_g = cuda.to_device(np.ascontiguousarray(y_train))
         y_train_df = cudf.Series(y_train_g)
         t0 = time.time()
-        cu_rf.fit(X_train_df, y_train_df)
+        cu_rf.fit(X_train, y_train)
         sg_fit_time = time.time() - t0
+
         print("cuML Fit RF in ", sg_fit_time)
         cu_rf_sg_predicted = cu_rf.predict(X_test)
         acc_score_cuml = accuracy_score(cu_rf_sg_predicted, y_test)
@@ -171,56 +175,56 @@ def compare_rf_runtimes(X_train, y_train, X_test, y_test,
         skl_fit_time = 0.0
         acc_score_skl = 0.0
 
-    X_cudf = cudf.DataFrame.from_pandas(pd.DataFrame(X_train))
-    X_train_df = dask_cudf.from_cudf(X_cudf, npartitions=n_workers)
+    # X_cudf = cudf.DataFrame.from_pandas(pd.DataFrame(X_train))
+    # X_train_df = dask_cudf.from_cudf(X_cudf, npartitions=n_workers)
 
-    y_cudf = np.array(pd.DataFrame(y_train).values)
-    y_cudf = y_cudf[:, 0]
-    y_cudf = cudf.Series(y_cudf)
-    y_train_df = dask_cudf.from_cudf(y_cudf, npartitions=n_workers)
+    # y_cudf = np.array(pd.DataFrame(y_train).values)
+    # y_cudf = y_cudf[:, 0]
+    # y_cudf = cudf.Series(y_cudf)
+    # y_train_df = dask_cudf.from_cudf(y_cudf, npartitions=n_workers)
 
-    if explicit_persist:
-        X_train_df, y_train_df = c.persist([X_train_df, y_train_df],
-                                           workers={X_train_df: workers,
-                                                    y_train_df: workers})
-        print("Persisted X and y to all workers explicitly")
-    else:
-        X_train_df = X_train_df.persist()
-        y_train_df = y_train_df.persist()
-        print("Standard persist for X and y")
+    # if explicit_persist:
+    #     X_train_df, y_train_df = c.persist([X_train_df, y_train_df],
+    #                                        workers={X_train_df: workers,
+    #                                                 y_train_df: workers})
+    #     print("Persisted X and y to all workers explicitly")
+    # else:
+    #     X_train_df = X_train_df.persist()
+    #     y_train_df = y_train_df.persist()
+    #     print("Standard persist for X and y")
 
-    print("Wait for data distribution: ")
-    progress(X_train_df, y_train_df)
+    # print("Wait for data distribution: ")
+    # progress(X_train_df, y_train_df)
 
-    print("--- Begin fit ---")
-    print("Dask params: ", str(cu_rf_params))
-    cu_rf_mg = cuRFC_mg(**cu_rf_params, workers=workers)
-    t1 = time.time()
-    cu_rf_mg.fit(X_train_df, y_train_df)
-    wait(cu_rf_mg)
-    wait(cu_rf_mg.rfs)
-    mg_fit_time = time.time() - t1
-    print("Fit dask in ", time.time() - t1)
-    if skip_predict:
-        acc_score_dask = 0.0
-    else:
-        cu_rf_mg_predicted = cu_rf_mg.predict(X_test)
-        acc_score_dask = accuracy_score(cu_rf_mg_predicted, y_test)
-    print("Fit and predict combo MG: ", time.time() - t1)
+    # print("--- Begin fit ---")
+    # print("Dask params: ", str(cu_rf_params))
+    # cu_rf_mg = cuRFC_mg(**cu_rf_params, workers=workers)
+    # t1 = time.time()
+    # cu_rf_mg.fit(X_train_df, y_train_df)
+    # wait(cu_rf_mg)
+    # wait(cu_rf_mg.rfs)
+    # mg_fit_time = time.time() - t1
+    # print("Fit dask in ", time.time() - t1)
+    # if skip_predict:
+    #     acc_score_dask = 0.0
+    # else:
+    #     cu_rf_mg_predicted = cu_rf_mg.predict(X_test)
+    #     acc_score_dask = accuracy_score(cu_rf_mg_predicted, y_test)
+    # print("Fit and predict combo MG: ", time.time() - t1)
 
-    if cluster:
-        cluster.close()
+    # if cluster:
+    #     cluster.close()
 
     return dict(size=train_size,
                 n_estimators=n_estimators,
                 n_streams=n_streams,
                 max_depth=max_depth,
                 sg_fit_time=sg_fit_time,
-                mg_fit_time=mg_fit_time,
+                # mg_fit_time=mg_fit_time,
                 skl_fit_time=skl_fit_time,
                 acc_score_skl=acc_score_skl,
                 acc_score_cuml=acc_score_cuml,
-                acc_score_dask=acc_score_dask,
+                # acc_score_dask=acc_score_dask,
                 n_workers=n_workers)
 
 
