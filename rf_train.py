@@ -130,8 +130,8 @@ def compare_rf_runtimes(X_train, y_train, X_test, y_test,
     # del data
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
 
-    y_train = y_train.astype(np.int32)
-    y_test = y_test.astype(np.int32)
+    # y_train = y_train.astype(np.int32)
+    # y_test = y_test.astype(np.int32)
 
     print("X train: ", X_train.shape, "Y train: ", y_train.shape,
           "X test: ", X_test.shape, "Y test: ", y_test.shape)
@@ -153,24 +153,25 @@ def compare_rf_runtimes(X_train, y_train, X_test, y_test,
         print("CUML params: ", str(sg_params))
         cu_rf = cuRF(**sg_params)
         print("--- Basic model: \n\n---", str(cu_rf.get_params()))
-        X_train_g = cuda.to_device(np.ascontiguousarray(X_train))
-        X_train_df = cudf.DataFrame.from_gpu_matrix(X_train_g)
-        y_train_g = cuda.to_device(np.ascontiguousarray(y_train))
-        y_train_df = cudf.Series(y_train_g)
+        # X_train_g = cuda.to_device(np.ascontiguousarray(X_train[:, :]))
+        # X_train_df = cudf.DataFrame.from_gpu_matrix(X_train_g)
+        # y_train_g = cuda.to_device(np.ascontiguousarray(y_train))
+        # y_train_df = cudf.Series(y_train_g)
         t0 = time.time()
+        # cu_rf.fit(X_train_df, y_train_df)
         cu_rf.fit(X_train, y_train)
         sg_fit_time = time.time() - t0
 
         print("cuML Fit RF in ", sg_fit_time)
-        cu_rf_sg_predicted = cu_rf.predict(X_test)
-        acc_score_cuml = accuracy_score(cu_rf_sg_predicted, y_test)
+        cu_rf_sg_predicted = cu_rf.predict(X_test[10000:, :])
+        acc_score_cuml = accuracy_score(cu_rf_sg_predicted, y_test[10000:])
         print("Total fit + predict SG: ", time.time() - t0)
     else:
         sg_fit_time = 0.0
         acc_score_cuml = 0.0
 
     if run_sklearn:
-        skl_fit_time, acc_score_skl = fit_sklearn(cu_rf_params, X_train, y_train, X_test, y_test)
+        skl_fit_time, acc_score_skl = fit_sklearn(cu_rf_params, X_train, y_train, X_test[10000:, :], y_test[10000:])
     else:
         skl_fit_time = 0.0
         acc_score_skl = 0.0
@@ -286,14 +287,14 @@ if __name__ == '__main__':
     if dataset == 'epsilon':
         X_train = data.X_train.astype(np.float32)
         X_test = data.X_test.astype(np.float32)
-        y_train = data.y_train.astype(np.float32)
-        y_test = data.y_test.astype(np.float32)
+        y_train = data.y_train.astype(np.int32)
+        y_test = data.y_test.astype(np.int32)
     # to numpy array 
     else:
         X_train = data.X_train.to_numpy(np.float32)
         X_test = data.X_test.to_numpy(np.float32)
-        y_train = data.y_train.to_numpy(np.float32)
-        y_test = data.y_test.to_numpy(np.float32)
+        y_train = data.y_train.to_numpy(np.int32)
+        y_test = data.y_test.to_numpy(np.int32)
 
     # by pass n_samples 
     n_samples = X_train.shape[0]
