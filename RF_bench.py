@@ -109,6 +109,7 @@ def start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, dep
 
 # ## Higgs
 
+"""
 # In[4]:
 
 
@@ -125,9 +126,9 @@ def download_higgs(compressed_filepath, decompressed_filepath):
 # In[5]:
 
 
-compressed_filepath = './data/HIGGS.csv.gz' # Set this as path for gzipped Higgs data file, if you already have
-decompressed_filepath = './data/HIGGS.csv' # Set this as path for decompressed Higgs data file, if you already have
-download_higgs(compressed_filepath, decompressed_filepath)
+# compressed_filepath = '../gbm-bench/data/HIGGS.csv.gz' # Set this as path for gzipped Higgs data file, if you already have
+decompressed_filepath = '../gbm-bench/data/HIGGS.csv' # Set this as path for decompressed Higgs data file, if you already have
+# download_higgs(compressed_filepath, decompressed_filepath)
 
 col_names = ['label'] + ["col-{}".format(i) for i in range(2, 30)] # Assign column names
 dtypes_ls = ['int32'] + ['float32' for _ in range(2, 30)] # Assign dtypes to each column
@@ -164,7 +165,7 @@ stream_array = [8, 10]
 depth_array = [8, 12, 16]
 run_cuml = True
 run_skl = True 
-skip_test = True 
+skip_test = True
 csv_path = './rf_bench_results/rf_bench_higgs.csv'
 
 start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_array, csv_path, X_train, y_train, X_train_np, y_train_np, X_test_np, y_test_np)
@@ -177,7 +178,7 @@ start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_a
 
 from datasets import prepare_dataset
 
-data = prepare_dataset('./data/', 'airline', 115000000)
+data = prepare_dataset('../gbm-bench/data/', 'airline', 115000000)
 
 data.X_train = data.X_train.astype(np.float32)
 data.X_test = data.X_test.astype(np.float32)
@@ -207,14 +208,13 @@ estimator_array = [100, 500, 1000]
 stream_array = [8, 10]
 depth_array = [8, 12, 16]
 run_cuml = True
-run_skl = True 
-skip_test = True 
+run_skl = False 
+skip_test = False
 csv_path = './rf_bench_results/rf_bench_airline.csv'
 
 # CudaAPIError: [1] Call to cuMemcpyHtoD results in CUDA_ERROR_INVALID_VALUE
 # got this error even with numpy array with input 
-start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_array, csv_path, X_train_np, y_train_np, X_train_np, X_test_np, X_test_np, y_test_np)
-
+start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_array, csv_path, X_train_df, y_train_df, X_train_np, X_test_np, X_test_np, y_test_np)
 
 # ## Epsilon
 
@@ -223,7 +223,7 @@ start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_a
 
 from datasets import prepare_dataset
 
-data = prepare_dataset('./data/', 'epsilon', 500000)
+data = prepare_dataset('../gbm-bench/data/', 'epsilon', 500000)
 
 
 # In[19]:
@@ -252,11 +252,11 @@ stream_array = [8, 10]
 depth_array = [8, 12, 16]
 run_cuml = True
 run_skl = True 
-skip_test = True 
+skip_test = False
 csv_path = './rf_bench_results/rf_bench_epsilon.csv'
 
 start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_array, csv_path, X_train_df_gpu, y_train_df_gpu, data.X_train, data.y_train, data.X_test, data.y_test)
-
+"""
 
 # ## Bosch
 
@@ -265,7 +265,7 @@ start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_a
 
 from datasets import prepare_dataset
 
-data = prepare_dataset('./data/', 'bosch', 1184000)
+data = prepare_dataset('../gbm-bench/data/', 'bosch', 1184000)
 
 data.X_train = data.X_train.astype(np.float32)
 data.X_test = data.X_test.astype(np.float32)
@@ -278,15 +278,17 @@ y_train_np = data.y_train.to_numpy()
 y_test_np = data.y_test.to_numpy()
 
 # OOM 
-# X_train_df = cudf.from_pandas(data.X_train)
-# y_train_df = cudf.from_pandas(data.y_train)
+X_train_df = cudf.from_pandas(data.X_train)
+y_train_df = cudf.from_pandas(data.y_train)
+X_train_df = X_train_df.fillna(0)
+y_train_df = y_train_df.fillna(0)
 
 print("NP Shape of the training data : ", X_train_np.shape)
 print("NP Shape of the ground truth data used for training : ", y_train_np.shape)
 print("NP Shape of the testing data : ", X_test_np.shape)
 print("NP Shape of the ground truth data used for testing : ", y_test_np.shape)
-# print("DF Shape of the training data : ", X_train_df.shape)
-# print("DF Shape of the ground truth data used for training : ", y_train_df.shape)
+print("DF Shape of the training data : ", X_train_df.shape)
+print("DF Shape of the ground truth data used for training : ", y_train_df.shape)
 
 
 # In[23]:
@@ -310,13 +312,13 @@ X_test_np = np.nan_to_num(X_test_np)
 
 estimator_array = [100, 500, 1000]
 stream_array = [8, 10]
-depth_array = [8, 12, 16]
+depth_array = [8, 12]
 run_cuml = True
 run_skl = True 
-skip_test = True 
+skip_test = False
 csv_path = './rf_bench_results/rf_bench_bosch.csv'
 
 # use X_train_np, y_train_np for cuml as GPU data frame OOM 
 # RuntimeError: Exception occured! file=/gpfs/fs1/rlan/rf_bench/cuml/cpp/src/decisiontree/quantile/quantile.cuh line=110: FAIL: call='cudaGetLastError()'. Reason:out of memory
-start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_array, csv_path, X_train_np, y_train_np, X_train_np, y_train_np, X_test_np, y_test_np)
+start_bench(run_cuml, run_skl, skip_test, estimator_array, stream_array, depth_array, csv_path, X_train_df, y_train_df, X_train_np, y_train_np, X_test_np, y_test_np)
 
